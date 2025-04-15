@@ -13,6 +13,7 @@ const shopSearchRouter = require("./routes/shop/search-routes");
 const shopReviewRouter = require("./routes/shop/review-routes");
 require('dotenv').config();
 const commonFeatureRouter = require("./routes/common/feature-routes");
+const client = require('prom-client');
 
 //create a database connection -> u can also
 //create a separate file for this and then import/use that file here
@@ -42,6 +43,28 @@ app.use(
     exposedHeaders: ["Set-Cookie"],
   })
 );
+// Create a Registry to register metrics
+const register = new client.Registry();
+
+// Add default metrics (CPU, memory, etc.)
+client.collectDefaultMetrics({ register });
+
+// Example: Custom metric
+const httpRequestCounter = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code'],
+});
+
+register.registerMetric(httpRequestCounter);
+
+// Middleware to count all HTTP requests
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    httpRequestCounter.labels(req.method, req.path, res.statusCode).inc();
+  });
+  next();
+});
 
 // Add security headers
 app.use((req, res, next) => {
@@ -49,6 +72,11 @@ app.use((req, res, next) => {
   res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   next();
+});
+
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
 });
 
 app.use(cookieParser());
