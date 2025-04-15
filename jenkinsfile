@@ -17,11 +17,11 @@ pipeline {
         stage('Install Docker') {
             steps {
                sh '''
-            apt-get update
-            apt-get install -y docker.io curl
-            curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            chmod +x /usr/local/bin/docker-compose
-        '''
+                apt-get update
+                apt-get install -y docker.io curl
+                curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                chmod +x /usr/local/bin/docker-compose
+               '''
             }
         }
 
@@ -89,6 +89,28 @@ pipeline {
         stage('Building images (node and mongo)') {
             steps {
                 sh 'docker-compose up -d'
+            }
+        }
+
+        stage('Deploy to Nexus') { 
+            steps {   
+                script { 
+                    docker.withRegistry("http://${registry}", registryCredentials) { 
+                        sh 'docker push $registry/nodemongoapp:5.0' 
+                    } 
+                } 
+            } 
+        }
+
+        stage('Start Prometheus with Docker') {
+            steps {
+                 sh 'docker start prometheus'
+            }
+        }
+
+        stage('Start Grafana with Docker') {
+            steps {
+                sh 'docker start grafana'
             }
         }
     }
